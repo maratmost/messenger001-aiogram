@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "messenger001-aiogram"
+version = "0.1.0"
+description = "aiogram-compatible SDK for Messenger001 Bot API — migrate your Telegram bot in one import change"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Marat Mostafin" }]
+keywords = ["messenger001", "aiogram", "bot", "telegram", "migration"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: AsyncIO",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Communications :: Chat",
+]
+dependencies = [
+    "aiohttp>=3.9",
+    "pydantic>=2.5",
+]
+
+[project.urls]
+Homepage = "https://github.com/maratmost/messenger001-aiogram"
+Repository = "https://github.com/maratmost/messenger001-aiogram"
+Issues = "https://github.com/maratmost/messenger001-aiogram/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/messenger001_aiogram"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/messenger001_aiogram", "README.md", "LICENSE"]
