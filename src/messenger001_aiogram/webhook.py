@@ -14,6 +14,16 @@ from .dispatcher import Dispatcher
 log = logging.getLogger(__name__)
 
 
+def webhook_secret_from_token(token: str) -> str:
+    """Derive the HMAC secret that M001 uses to sign webhooks.
+
+    The backend stores only `sha256(plain_token)` and uses that value as
+    the HMAC-SHA256 key when signing outgoing webhooks. Bots that want to
+    verify signatures must derive the same value from their plain token.
+    """
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
 def _verify_signature(secret: str, body: bytes, signature: Optional[str]) -> bool:
     """M001 signs payload with HMAC-SHA256 using bot token as secret (hex digest).
 
@@ -66,10 +76,17 @@ async def start_webhook(
     port: int = 8080,
     path: str = "/webhook",
     secret: Optional[str] = None,
+    verify_signature: bool = True,
 ) -> None:
-    """Convenience runner: blocks until cancelled."""
+    """Convenience runner: blocks until cancelled.
+
+    If `verify_signature=True` (default) and `secret` is None, the secret is
+    auto-derived from the bot's plain token as M001 does server-side.
+    """
     import asyncio
 
+    if verify_signature and secret is None:
+        secret = webhook_secret_from_token(bot.token)
     app = build_webhook_app(dispatcher, bot, path=path, secret=secret)
     runner = web.AppRunner(app)
     await runner.setup()

@@ -29,7 +29,6 @@ logging.basicConfig(level=logging.INFO)
 
 TOKEN = os.environ["M001_TOKEN"]
 API_BASE = os.environ.get("M001_API_BASE", "https://messenger001.ru/api/v1")
-WEBHOOK_SECRET = os.environ.get("M001_WEBHOOK_SECRET") or TOKEN  # M001 signs with bot token
 HOST = os.environ.get("M001_HOST", "0.0.0.0")
 PORT = int(os.environ.get("M001_PORT", "8080"))
 PATH = os.environ.get("M001_WEBHOOK_PATH", "/webhook")
@@ -89,7 +88,7 @@ async def main() -> None:
     async with Bot(token=TOKEN, api_base=API_BASE) as bot:
         me = await bot.get_me()
         logging.info("Bot: %s (@%s)", me.first_name, me.username)
-        await start_webhook(dp, bot, host=HOST, port=PORT, path=PATH, secret=WEBHOOK_SECRET)
+        await start_webhook(dp, bot, host=HOST, port=PORT, path=PATH)
 
 
 if __name__ == "__main__":
