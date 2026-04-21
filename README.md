@@ -72,9 +72,9 @@ asyncio.run(main())
 
 ## Подключение
 
-1. Зарегистрируй бота через **@botfather** в Messenger001 → получи токен.
+1. Открой в Messenger001 чат с **@botfather** → `/newbot` → получи токен.
 2. Подними свой код на сервере с публичным HTTPS.
-3. В настройках бота (через @botfather или dashboard) укажи webhook URL: `https://your-host/webhook`.
+3. В том же чате с @botfather: `/mybots` → выбери бота → «Webhook URL» → укажи `https://your-host/webhook`.
 4. Запусти скрипт. Бот отвечает.
 
 ## Лицензия

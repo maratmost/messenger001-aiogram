@@ -28,7 +28,7 @@ class User:
             id=int(data.get("id", 0)),
             is_bot=bool(data.get("is_bot", False)),
             first_name=data.get("first_name") or data.get("name") or "",
-            last_name=data.get("last_name"),
+            last_name=data.get("last_name") or data.get("surname") or None,
             username=data.get("username") or data.get("nick"),
             language_code=data.get("language_code"),
         )
@@ -73,10 +73,16 @@ class Message:
         reply = None
         if data.get("reply_to_message"):
             reply = cls.from_m001(data["reply_to_message"], bot)
+        # M001 sends `chat_id` flat; Telegram sends nested `chat: {id, ...}`.
+        chat_data = data.get("chat")
+        if chat_data:
+            chat = Chat.from_m001(chat_data)
+        else:
+            chat = Chat(id=int(data.get("chat_id", 0)))
         return cls(
             message_id=int(data.get("message_id", 0)),
             date=int(data.get("date", 0)),
-            chat=Chat.from_m001(data.get("chat") or {}),
+            chat=chat,
             from_user=User.from_m001(data["from"]) if data.get("from") else None,
             text=data.get("text"),
             caption=data.get("caption"),
@@ -157,7 +163,20 @@ class CallbackQuery:
 
     @classmethod
     def from_m001(cls, data: dict[str, Any], bot: "Bot") -> "CallbackQuery":
-        msg = Message.from_m001(data["message"], bot) if data.get("message") else None
+        # Telegram: nested `message: {message_id, chat: {id, ...}, ...}`.
+        # M001: flat `chat_id` + `message_id` at callback_query level, no nested message.
+        msg: Optional[Message] = None
+        if data.get("message"):
+            msg = Message.from_m001(data["message"], bot)
+        elif data.get("message_id") and data.get("chat_id"):
+            import time as _t
+
+            msg = Message(
+                message_id=int(data["message_id"]),
+                date=int(_t.time()),
+                chat=Chat(id=int(data["chat_id"])),
+                _bot=bot,
+            )
         return cls(
             id=str(data.get("id", "")),
             from_user=User.from_m001(data["from"]) if data.get("from") else User(id=0),

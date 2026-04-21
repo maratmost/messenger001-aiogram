@@ -15,6 +15,10 @@ log = logging.getLogger(__name__)
 
 
 def _verify_signature(secret: str, body: bytes, signature: Optional[str]) -> bool:
+    """M001 signs payload with HMAC-SHA256 using bot token as secret (hex digest).
+
+    Matches backend/app/Services/WebhookService.php::send().
+    """
     if not signature:
         return False
     expected = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
@@ -32,8 +36,11 @@ def build_webhook_app(
     async def handle(request: web.Request) -> web.Response:
         body = await request.read()
         if secret:
-            signature = request.headers.get("X-M001-Signature") or request.headers.get(
-                "X-Hub-Signature-256"
+            # M001 uses `X-Signature`. Also accept common alternatives.
+            signature = (
+                request.headers.get("X-Signature")
+                or request.headers.get("X-M001-Signature")
+                or request.headers.get("X-Hub-Signature-256")
             )
             if not _verify_signature(secret, body, signature):
                 log.warning("Webhook signature verification failed")
