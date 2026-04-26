@@ -2,11 +2,61 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Optional
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 if TYPE_CHECKING:
     from .bot import Bot
-    from .keyboards import InlineKeyboardMarkup
+
+# Re-exports so `from messenger001_aiogram.types import KeyboardButton, ...` works
+# (mirrors aiogram which exposes keyboard classes under both `aiogram.types`
+# and `aiogram.utils.keyboard`).
+from .keyboards import (  # noqa: E402,F401
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
+)
+
+
+# aiogram base type for any incoming event. We don't need a real hierarchy here —
+# Message/CallbackQuery/Update don't structurally inherit from it, so prefer
+# `event: TelegramObject` only as a type hint in middlewares/handlers.
+TelegramObject = Any  # type: ignore[assignment]
+
+
+@dataclass
+class FSInputFile:
+    """Local file uploader, drop-in for `aiogram.types.FSInputFile`.
+
+    Bot.send_photo/document/etc. accept either a path/bytes directly or this
+    wrapper. The wrapper lets callers carry a custom filename.
+    """
+
+    path: Union[str, Path]
+    filename: Optional[str] = None
+
+    def resolve_path(self) -> Path:
+        return Path(self.path)
+
+
+@dataclass
+class BotCommand:
+    """aiogram-compatible BotCommand (command + description)."""
+
+    command: str
+    description: str
+
+    def to_dict(self) -> dict[str, str]:
+        return {"command": self.command, "description": self.description}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "BotCommand":
+        return cls(
+            command=str(data.get("command", "")),
+            description=str(data.get("description", "")),
+        )
 
 
 @dataclass

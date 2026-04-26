@@ -3,13 +3,16 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import aiohttp
 
 from .exceptions import APIError
 from .keyboards import InlineKeyboardMarkup
-from .types import Message, User
+from .types import BotCommand, FSInputFile, Message, User
+
+if TYPE_CHECKING:
+    from .client import DefaultBotProperties
 
 log = logging.getLogger(__name__)
 
@@ -30,6 +33,7 @@ class Bot:
         api_base: str = DEFAULT_API_BASE,
         session: Optional[aiohttp.ClientSession] = None,
         request_timeout: float = 30.0,
+        default: Optional["DefaultBotProperties"] = None,
     ) -> None:
         if not token:
             raise ValueError("token is required")
@@ -38,6 +42,10 @@ class Bot:
         self._session = session
         self._own_session = session is None
         self._timeout = aiohttp.ClientTimeout(total=request_timeout)
+        self._default = default
+        self.parse_mode: Optional[str] = (
+            default.parse_mode_value if default is not None else None
+        )
 
     @property
     def _url_prefix(self) -> str:
@@ -86,8 +94,11 @@ class Bot:
                 form.add_field(k, json.dumps(v), content_type="application/json")
             else:
                 form.add_field(k, str(v))
-        # file can be path, Path, bytes, or file-like
-        if isinstance(file, (str, Path)):
+        # file can be FSInputFile, path, Path, bytes, or file-like
+        if isinstance(file, FSInputFile):
+            p = file.resolve_path()
+            form.add_field(file_field, p.read_bytes(), filename=file.filename or p.name)
+        elif isinstance(file, (str, Path)):
             p = Path(file)
             form.add_field(file_field, p.read_bytes(), filename=p.name)
         elif isinstance(file, bytes):
@@ -122,13 +133,19 @@ class Bot:
         text: str,
         reply_markup: Optional[InlineKeyboardMarkup] = None,
         reply_to_message_id: Optional[int] = None,
+        parse_mode: Optional[str] = None,
         **_: Any,
     ) -> Message:
         payload: dict[str, Any] = {"chat_id": chat_id, "text": text}
         if reply_markup is not None:
-            payload["reply_markup"] = reply_markup.to_m001()
+            wire = reply_markup.to_m001()
+            if wire is not None:
+                payload["reply_markup"] = wire
         if reply_to_message_id is not None:
             payload["reply_to_message_id"] = reply_to_message_id
+        effective_parse_mode = parse_mode if parse_mode is not None else self.parse_mode
+        if effective_parse_mode is not None:
+            payload["parse_mode"] = effective_parse_mode
         data = await self._post_json("sendMessage", payload)
         return self._stub_message(chat_id, data)
 
@@ -148,7 +165,9 @@ class Bot:
             "text": text,
         }
         if reply_markup is not None:
-            payload["reply_markup"] = reply_markup.to_m001()
+            wire = reply_markup.to_m001()
+            if wire is not None:
+                payload["reply_markup"] = wire
         data = await self._post_json("editMessageText", payload)
         return self._stub_message(chat_id, data)
 
@@ -162,8 +181,12 @@ class Bot:
         payload: dict[str, Any] = {
             "chat_id": chat_id,
             "message_id": message_id,
-            "reply_markup": reply_markup.to_m001() if reply_markup else None,
         }
+        if reply_markup is not None:
+            wire = reply_markup.to_m001()
+            payload["reply_markup"] = wire  # may be None to clear
+        else:
+            payload["reply_markup"] = None
         data = await self._post_json("editMessageReplyMarkup", payload)
         return self._stub_message(chat_id, data)
 
@@ -183,6 +206,35 @@ class Bot:
         data = await self._post_json("answerCallbackQuery", payload)
         return bool(data.get("ok"))
 
+    async def set_my_commands(
+        self, commands: list[Union[BotCommand, dict[str, str]]], **_: Any
+    ) -> list[BotCommand]:
+        """Register the bot's command list so clients can show a menu / autocomplete."""
+        payload_commands: list[dict[str, str]] = []
+        for c in commands:
+            if isinstance(c, BotCommand):
+                payload_commands.append(c.to_dict())
+            elif isinstance(c, dict):
+                payload_commands.append(
+                    {"command": str(c["command"]), "description": str(c["description"])}
+                )
+            else:
+                raise TypeError("commands must be BotCommand or dict")
+        data = await self._post_json("setMyCommands", {"commands": payload_commands})
+        return [BotCommand.from_dict(x) for x in (data.get("result") or [])]
+
+    async def delete_my_commands(self, **_: Any) -> bool:
+        data = await self._post_json("deleteMyCommands", {})
+        return bool(data.get("ok"))
+
+    async def get_my_commands(self, **_: Any) -> list[BotCommand]:
+        session = await self._ensure_session()
+        async with session.get(f"{self._url_prefix}/getMyCommands") as resp:
+            data = await resp.json(content_type=None)
+            if resp.status >= 400 or not data.get("ok", True):
+                raise APIError(resp.status, data)
+            return [BotCommand.from_dict(x) for x in (data.get("result") or [])]
+
     async def send_chat_action(self, chat_id: int, action: str = "typing", **_: Any) -> bool:
         data = await self._post_json("sendTyping", {"chat_id": chat_id})
         return bool(data.get("ok"))
@@ -199,7 +251,9 @@ class Bot:
         if caption is not None:
             fields["caption"] = caption
         if reply_markup is not None:
-            fields["reply_markup"] = reply_markup.to_m001()
+            wire = reply_markup.to_m001()
+            if wire is not None:
+                fields["reply_markup"] = wire
         data = await self._post_form("sendPhoto", fields, "photo", photo)
         return self._stub_message(chat_id, data)
 
@@ -245,7 +299,9 @@ class Bot:
         if caption is not None:
             fields["caption"] = caption
         if reply_markup is not None:
-            fields["reply_markup"] = reply_markup.to_m001()
+            wire = reply_markup.to_m001()
+            if wire is not None:
+                fields["reply_markup"] = wire
         data = await self._post_form(method, fields, "file", file)
         return self._stub_message(chat_id, data)
 

@@ -8,8 +8,9 @@ from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Optional, Union
 
 from .bot import Bot
-from .filters import BaseFilter, _MagicFilter
-from .fsm import FSMContext, MemoryStorage
+from .filters import BaseFilter, StateFilter, _MagicAttribute, _MagicFilter
+from .fsm import FSMContext, MemoryStorage, State
+from .middleware import BaseMiddleware
 from .types import CallbackQuery, Message, Update
 
 log = logging.getLogger(__name__)
@@ -28,6 +29,8 @@ class _Observer:
     def __init__(self, event_type: str):
         self._event_type = event_type
         self._handlers: list[_HandlerEntry] = []
+        self._middlewares: list[BaseMiddleware] = []
+        self._outer_middlewares: list[BaseMiddleware] = []
 
     def register(self, callback: Handler, *filters: FilterLike) -> None:
         self._handlers.append(_HandlerEntry(callback=callback, filters=tuple(filters)))
@@ -39,31 +42,89 @@ class _Observer:
 
         return decorator
 
+    def middleware(self, mw: BaseMiddleware) -> BaseMiddleware:
+        """Register inner middleware (runs after filter match, before handler)."""
+        self._middlewares.append(mw)
+        return mw
+
+    def outer_middleware(self, mw: BaseMiddleware) -> BaseMiddleware:
+        """Register outer middleware (runs before filters, on every incoming event)."""
+        self._outer_middlewares.append(mw)
+        return mw
+
     async def trigger(self, event: Any, context: dict[str, Any]) -> bool:
-        for entry in self._handlers:
-            extra: dict[str, Any] = {}
-            matched = True
-            for f in entry.filters:
-                result = await _apply_filter(f, event)
-                if result is False or result is None:
-                    matched = False
-                    break
-                if isinstance(result, dict):
-                    extra.update(result)
-            if not matched:
-                continue
-            await _invoke(entry.callback, event, {**context, **extra})
-            return True
+        async def _filter_and_dispatch(_event: Any, _data: dict[str, Any]) -> bool:
+            for entry in self._handlers:
+                extra: dict[str, Any] = {}
+                matched = True
+                for f in entry.filters:
+                    result = await _apply_filter(f, _event, _data)
+                    if result is False or result is None:
+                        matched = False
+                        break
+                    if isinstance(result, dict):
+                        extra.update(result)
+                if not matched:
+                    continue
+
+                merged = {**_data, **extra}
+
+                async def _terminal(__event: Any, __data: dict[str, Any]) -> Any:
+                    await _invoke(entry.callback, __event, __data)
+                    return True
+
+                handler_chain = _terminal
+                for mw in reversed(self._middlewares):
+                    handler_chain = _wrap_mw(mw, handler_chain)
+                await handler_chain(_event, merged)
+                return True
+            return False
+
+        outer_chain = _filter_and_dispatch
+        for mw in reversed(self._outer_middlewares):
+            outer_chain = _wrap_mw(mw, outer_chain)
+        result = await outer_chain(event, context)
+        return bool(result)
+
+
+def _wrap_mw(
+    mw: BaseMiddleware,
+    nxt: Callable[[Any, dict[str, Any]], Awaitable[Any]],
+) -> Callable[[Any, dict[str, Any]], Awaitable[Any]]:
+    async def _call(event: Any, data: dict[str, Any]) -> Any:
+        return await mw(nxt, event, data)
+
+    return _call
+
+
+async def _apply_filter(f: Any, event: Any, data: dict[str, Any]) -> Any:
+    """Call filter with (event) or (event, data) depending on its signature.
+
+    Special cases (aiogram parity):
+      * ``State`` instance → treated as ``StateFilter(state)``
+      * bare ``_MagicAttribute`` (no ``==``/``in_``/etc.) → truthiness check on resolved value
+    """
+    # State as filter — sugar for StateFilter(state)
+    if isinstance(f, State):
+        f = StateFilter(f)
+    # Bare F.attr → truthiness filter
+    if isinstance(f, _MagicAttribute):
+        return await f._as_filter(event)
+    if not hasattr(f, "__call__"):
         return False
-
-
-async def _apply_filter(f: FilterLike, event: Any) -> Any:
-    if hasattr(f, "__call__"):
-        res = f(event)
-        if inspect.isawaitable(res):
-            return await res
-        return res
-    return False
+    try:
+        sig = inspect.signature(f.__call__ if hasattr(f, "__call__") else f)  # type: ignore[arg-type]
+        params = [
+            p for p in sig.parameters.values()
+            if p.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+        ]
+    except (TypeError, ValueError):
+        params = []
+    accepts_data = any(p.name == "data" for p in params)
+    res = f(event, data=data) if accepts_data else f(event)  # type: ignore[call-arg]
+    if inspect.isawaitable(res):
+        return await res
+    return res
 
 
 async def _invoke(callback: Handler, event: Any, context: dict[str, Any]) -> None:
@@ -106,10 +167,24 @@ class Router:
         return False
 
 
+class _UpdateHook:
+    """aiogram parity: `dp.update.middleware(mw)` registers cross-event outer middlewares."""
+
+    def __init__(self) -> None:
+        self._outer_middlewares: list[BaseMiddleware] = []
+
+    def middleware(self, mw: BaseMiddleware) -> BaseMiddleware:
+        self._outer_middlewares.append(mw)
+        return mw
+
+    outer_middleware = middleware
+
+
 class Dispatcher(Router):
     def __init__(self, storage: Optional[MemoryStorage] = None, **_: Any):
         super().__init__(name="dispatcher")
         self.storage = storage or MemoryStorage()
+        self.update = _UpdateHook()
 
     def _context_for(self, update: Update, bot: Bot) -> dict[str, Any]:
         chat_id: Optional[int] = None
@@ -129,8 +204,15 @@ class Dispatcher(Router):
         if isinstance(update, dict):
             update = Update.from_m001(update, bot)
         context = self._context_for(update, bot)
+
+        async def _run(_event: Any, _data: dict[str, Any]) -> bool:
+            return await self._dispatch(_event, _data)
+
+        chain = _run
+        for mw in reversed(self.update._outer_middlewares):
+            chain = _wrap_mw(mw, chain)
         try:
-            return await self._dispatch(update, context)
+            return bool(await chain(update, context))
         except Exception:
             log.exception("Handler failed for update_id=%s", update.update_id)
             return False

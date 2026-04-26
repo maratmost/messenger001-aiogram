@@ -1,9 +1,13 @@
-"""Minimal FSM: MemoryStorage + FSMContext + State/StatesGroup, aiogram-compatible."""
+"""Minimal FSM: MemoryStorage + RedisStorage + FSMContext + State/StatesGroup, aiogram-compatible."""
 from __future__ import annotations
 
 import asyncio
+import json
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
+
+if TYPE_CHECKING:
+    from redis.asyncio import Redis as AsyncRedis
 
 
 class State:
@@ -73,6 +77,65 @@ class MemoryStorage:
             rec = self._store.setdefault((chat_id, user_id), _Record())
             rec.data.update(data)
             return dict(rec.data)
+
+
+class RedisStorage(MemoryStorage):
+    """FSM storage persisted in Redis. Drop-in for `aiogram.fsm.storage.redis.RedisStorage`.
+
+    State is stored as a single JSON blob per (chat_id, user_id) at key
+    `m001:fsm:{chat_id}:{user_id}`.
+    """
+
+    def __init__(self, redis: "AsyncRedis", key_prefix: str = "m001:fsm", ttl: Optional[int] = None) -> None:  # type: ignore[type-arg]
+        super().__init__()
+        self._redis = redis
+        self._prefix = key_prefix.rstrip(":")
+        self._ttl = ttl
+
+    def _key(self, chat_id: int, user_id: int) -> str:
+        return f"{self._prefix}:{chat_id}:{user_id}"
+
+    async def _load(self, chat_id: int, user_id: int) -> _Record:
+        raw = await self._redis.get(self._key(chat_id, user_id))
+        if not raw:
+            return _Record()
+        try:
+            payload = json.loads(raw if isinstance(raw, str) else raw.decode())
+        except (ValueError, AttributeError):
+            return _Record()
+        return _Record(state=payload.get("state"), data=dict(payload.get("data") or {}))
+
+    async def _save(self, chat_id: int, user_id: int, rec: _Record) -> None:
+        payload = json.dumps({"state": rec.state, "data": rec.data})
+        if self._ttl:
+            await self._redis.set(self._key(chat_id, user_id), payload, ex=self._ttl)
+        else:
+            await self._redis.set(self._key(chat_id, user_id), payload)
+
+    async def get(self, chat_id: int, user_id: int) -> _Record:  # type: ignore[override]
+        return await self._load(chat_id, user_id)
+
+    async def set_state(  # type: ignore[override]
+        self, chat_id: int, user_id: int, state: Optional[str]
+    ) -> None:
+        rec = await self._load(chat_id, user_id)
+        rec.state = state
+        await self._save(chat_id, user_id, rec)
+
+    async def set_data(  # type: ignore[override]
+        self, chat_id: int, user_id: int, data: dict[str, Any]
+    ) -> None:
+        rec = await self._load(chat_id, user_id)
+        rec.data = dict(data)
+        await self._save(chat_id, user_id, rec)
+
+    async def update_data(  # type: ignore[override]
+        self, chat_id: int, user_id: int, data: dict[str, Any]
+    ) -> dict[str, Any]:
+        rec = await self._load(chat_id, user_id)
+        rec.data.update(data)
+        await self._save(chat_id, user_id, rec)
+        return dict(rec.data)
 
 
 class FSMContext:

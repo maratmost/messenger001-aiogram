@@ -16,6 +16,7 @@ import os
 
 from messenger001_aiogram import (
     Bot,
+    BotCommand,
     CallbackQuery,
     Dispatcher,
     F,
@@ -61,6 +62,7 @@ async def on_any(msg: Message) -> None:
 
 @dp.callback_query(F.data == "ping")
 async def on_ping(call: CallbackQuery) -> None:
+    logging.info("[CB] on_ping fired")
     await call.answer("pong")
     if call.message:
         await call.message.edit_text("pong 🏓 (нажми ещё раз на «Меню»)")
@@ -68,6 +70,7 @@ async def on_ping(call: CallbackQuery) -> None:
 
 @dp.callback_query(F.data == "menu")
 async def on_menu(call: CallbackQuery) -> None:
+    logging.info("[CB] on_menu fired")
     await call.answer()
     kb = InlineKeyboardBuilder()
     kb.button(text="Ping", callback_data="ping")
@@ -79,6 +82,7 @@ async def on_menu(call: CallbackQuery) -> None:
 
 @dp.callback_query(F.data == "close")
 async def on_close(call: CallbackQuery) -> None:
+    logging.info("[CB] on_close fired")
     await call.answer("Закрыто")
     if call.message:
         await call.message.edit_text("— закрыто —")
@@ -88,6 +92,11 @@ async def main() -> None:
     async with Bot(token=TOKEN, api_base=API_BASE) as bot:
         me = await bot.get_me()
         logging.info("Bot: %s (@%s)", me.first_name, me.username)
+        # Регистрируем список команд — клиент покажет меню и сделает /start кликабельным.
+        await bot.set_my_commands([
+            BotCommand(command="start", description="Начать работу"),
+            BotCommand(command="help", description="Список команд"),
+        ])
         await start_webhook(dp, bot, host=HOST, port=PORT, path=PATH)
 
 

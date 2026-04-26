@@ -1,4 +1,11 @@
-"""Inline keyboards — aiogram-compatible shapes, M001 wire format."""
+"""Inline keyboards — aiogram-compatible shapes, M001 wire format.
+
+Reply keyboards (``ReplyKeyboardMarkup`` / ``KeyboardButton`` / ``ReplyKeyboardRemove``)
+are accepted as type stubs for migration compatibility, but Messenger001 does not
+yet render them on the client. ``to_m001()`` returns ``None`` and ``Bot.send_message``
+omits the field, so passing a reply keyboard is currently a no-op rather than an
+error. Track real support in the backend roadmap.
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -74,3 +81,36 @@ class InlineKeyboardBuilder:
     def as_markup(self) -> InlineKeyboardMarkup:
         rows = [r for r in self._rows if r]
         return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+# --------------------------------------------------------------------------
+# Reply keyboards — stubs (not rendered by M001 client today)
+# --------------------------------------------------------------------------
+
+
+@dataclass
+class KeyboardButton:
+    text: str
+    request_contact: bool = False
+    request_location: bool = False
+
+
+@dataclass
+class ReplyKeyboardMarkup:
+    keyboard: list[list[KeyboardButton]] = field(default_factory=list)
+    resize_keyboard: bool = False
+    one_time_keyboard: bool = False
+    selective: bool = False
+    input_field_placeholder: Optional[str] = None
+
+    def to_m001(self) -> Optional[dict[str, Any]]:
+        return None
+
+
+@dataclass
+class ReplyKeyboardRemove:
+    remove_keyboard: bool = True
+    selective: bool = False
+
+    def to_m001(self) -> Optional[dict[str, Any]]:
+        return None

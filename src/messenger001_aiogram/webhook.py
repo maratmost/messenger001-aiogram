@@ -24,17 +24,21 @@ def webhook_secret_from_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def _verify_signature(secret: str, body: bytes, signature: Optional[str]) -> bool:
+def verify_webhook_signature(secret: str, body: bytes, signature: Optional[str]) -> bool:
     """M001 signs payload with HMAC-SHA256 using bot token as secret (hex digest).
 
     Matches backend/app/Services/WebhookService.php::send().
+    Accepts both raw hex and `sha256=hex` formats.
     """
     if not signature:
         return False
     expected = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
-    # Support both raw hex and `sha256=hex` formats.
     candidate = signature.split("=", 1)[1] if "=" in signature else signature
     return hmac.compare_digest(expected, candidate)
+
+
+# Backwards-compatible alias (was the only export prior to v0.2).
+_verify_signature = verify_webhook_signature
 
 
 def build_webhook_app(
@@ -52,14 +56,16 @@ def build_webhook_app(
                 or request.headers.get("X-M001-Signature")
                 or request.headers.get("X-Hub-Signature-256")
             )
-            if not _verify_signature(secret, body, signature):
+            if not verify_webhook_signature(secret, body, signature):
                 log.warning("Webhook signature verification failed")
                 return web.Response(status=401, text="invalid signature")
         try:
             payload = await request.json()
         except Exception:
             return web.Response(status=400, text="invalid json")
-        await dispatcher.feed_webhook_update(bot, payload)
+        log.info("[WEBHOOK] payload=%s", payload)
+        handled = await dispatcher.feed_webhook_update(bot, payload)
+        log.info("[WEBHOOK] handled=%s", handled)
         return web.json_response({"ok": True})
 
     app = web.Application()

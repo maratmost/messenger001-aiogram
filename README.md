@@ -51,6 +51,20 @@ asyncio.run(main())
 
 См. [examples/echo_bot.py](examples/echo_bot.py) для полного примера.
 
+## Меню команд
+
+Зарегистрируй команды бота — в чате с ботом появится кнопка меню слева от поля ввода, `/команды` в тексте станут кликабельными, а ввод `/` покажет автокомплит.
+
+```python
+from messenger001_aiogram import BotCommand
+
+async with Bot(token=TOKEN) as bot:
+    await bot.set_my_commands([
+        BotCommand(command="start", description="Начать работу"),
+        BotCommand(command="help",  description="Помощь"),
+    ])
+```
+
 ## Что поддерживается (v0.1)
 
 | aiogram | messenger001-aiogram |
@@ -59,6 +73,7 @@ asyncio.run(main())
 | `bot.send_message / send_photo / send_document / send_video / send_audio` | ✅ |
 | `bot.edit_message_text / edit_message_reply_markup` | ✅ |
 | `bot.answer_callback_query / send_chat_action / get_me` | ✅ |
+| `bot.set_my_commands / get_my_commands / delete_my_commands` | ✅ |
 | `Dispatcher`, `Router`, `include_router` | ✅ |
 | `@dp.message(...)`, `@dp.callback_query(...)` | ✅ |
 | `Command`, `CommandStart(deep_link=True)` | ✅ |
