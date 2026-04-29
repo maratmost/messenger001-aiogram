@@ -87,10 +87,19 @@ async with Bot(token=TOKEN) as bot:
 
 ## Подключение
 
-1. Открой в Messenger001 чат с **@botfather** → `/newbot` → получи токен.
-2. Подними свой Python-скрипт с ботом (пример выше или [examples/echo_bot.py](examples/echo_bot.py)) на сервер с публичным HTTPS — бот должен отвечать на `POST /webhook`.
-3. В том же чате с @botfather: `/mybots` → выбери бота → «Webhook URL» → укажи `https://your-host/webhook`.
-4. Запусти свой скрипт (`python your_bot.py` или через systemd / supervisor / docker). Бот отвечает.
+1. **Создай бота.** Открой в Messenger001 чат с **@botfather** → `/newbot` → получи токен. Сохрани его в env-переменную `M001_TOKEN`.
+
+2. **Напиши код бота.** Используй пример выше или скопируй [examples/echo_bot.py](examples/echo_bot.py).
+
+3. **Запусти бота на сервере с публичным HTTPS** (VPS, Railway, Render, Fly.io). Скрипт должен слушать `POST /webhook` на публично доступном URL. Для production используй systemd / supervisor / docker, чтобы процесс автоматически рестартился.
+
+   ```bash
+   python your_bot.py
+   ```
+
+4. **Зарегистрируй webhook у @botfather.** В том же чате: `/mybots` → выбери бота → «Webhook URL» → укажи `https://your-host/webhook`.
+
+5. **Готово.** Пиши боту в Messenger001 — он отвечает.
 
 ## Лицензия
 
