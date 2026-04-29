@@ -88,10 +88,10 @@ async with Bot(token=TOKEN) as bot:
 ## Подключение
 
 1. Открой в Messenger001 чат с **@botfather** → `/newbot` → получи токен.
-2. Подними свой код на сервере с публичным HTTPS.
+2. Подними свой Python-скрипт с ботом (пример выше или [examples/echo_bot.py](examples/echo_bot.py)) на сервер с публичным HTTPS — бот должен отвечать на `POST /webhook`.
 3. В том же чате с @botfather: `/mybots` → выбери бота → «Webhook URL» → укажи `https://your-host/webhook`.
-4. Запусти скрипт. Бот отвечает.
+4. Запусти свой скрипт (`python your_bot.py` или через systemd / supervisor / docker). Бот отвечает.
 
 ## Лицензия
 
-MIT © Marat Mostafin
+MIT © Marat Khusainov

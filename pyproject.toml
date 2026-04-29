@@ -4,12 +4,12 @@ build-backend = "hatchling.build"
 
 [project]
 name = "messenger001-aiogram"
-version = "0.1.0"
+version = "0.1.0a2"
 description = "aiogram-compatible SDK for Messenger001 Bot API — migrate your Telegram bot in one import change"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "Marat Mostafin" }]
+authors = [{ name = "Marat Khusainov" }]
 keywords = ["messenger001", "aiogram", "bot", "telegram", "migration"]
 classifiers = [
     "Development Status :: 3 - Alpha",
