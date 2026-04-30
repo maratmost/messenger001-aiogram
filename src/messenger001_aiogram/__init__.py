@@ -32,7 +32,13 @@ from .middleware import BaseMiddleware
 from .types import BotCommand, CallbackQuery, Chat, FSInputFile, Message, TelegramObject, Update, User
 from .webhook import build_webhook_app, start_webhook
 
-__version__ = "0.2.0"
+try:
+    from importlib.metadata import PackageNotFoundError, version
+
+    __version__ = version("messenger001-aiogram")
+except (ImportError, PackageNotFoundError):  # pragma: no cover
+    # Editable install / тест без установки — единственный источник истины это pyproject.toml.
+    __version__ = "0.0.0+unknown"
 
 __all__ = [
     "Bot",
