@@ -1,19 +1,22 @@
 # messenger001-aiogram
 
 **aiogram-совместимый SDK для [Messenger001](https://messenger001.ru) Bot API.**
-Перенеси свой Telegram-бот на aiogram в Messenger001 **заменой одного импорта**.
+Перенеси свой Telegram-бот на aiogram в Messenger001 **заменой одного импорта** —
+или запусти **один codebase в двух мессенджерах одновременно**.
 
-> ⚠️ Alpha. API стабилизируется. Используй для пилотов и экспериментов.
+> Beta. API стабилизируется. Используй для пилотов и экспериментов.
 
 ## Установка
 
 ```bash
-pip install messenger001-aiogram   # позже, после публикации на PyPI
-# Сейчас:
-pip install git+https://github.com/maratmost/messenger001-aiogram.git
+# Только M001:
+pip install messenger001-aiogram
+
+# Dual-transport (TG + M001 в одной кодовой базе):
+pip install messenger001-aiogram[telegram]
 ```
 
-## Миграция существующего TG-бота
+## Сценарий 1 — миграция TG-бота в Messenger001
 
 ```diff
 - from aiogram import Bot, Dispatcher, F
@@ -25,7 +28,32 @@ pip install git+https://github.com/maratmost/messenger001-aiogram.git
 + from messenger001_aiogram.types import Message, CallbackQuery
 ```
 
-Handlers, фильтры, inline-клавиатуры, FSM — остаются без изменений.
+Handlers, фильтры, клавиатуры (inline + reply), FSM — без изменений.
+
+## Сценарий 2 — один codebase для TG и M001
+
+```python
+# Импортируй из dual-submodule везде:
+from messenger001_aiogram.dual import Bot, Dispatcher, F, Router
+from messenger001_aiogram.dual.filters import Command, CommandStart
+from messenger001_aiogram.dual.types import Message, CallbackQuery
+from messenger001_aiogram.dual.keyboards import InlineKeyboardBuilder, ReplyKeyboardMarkup
+from messenger001_aiogram.dual.fsm import State, StatesGroup, FSMContext, MemoryStorage
+
+# Handlers пишутся ОДИН раз — работают в обоих транспортах:
+@dp.message(Command("start"))
+async def start(msg: Message):
+    await msg.answer("Привет!")
+```
+
+Транспорт выбирается переменной окружения `TRANSPORT`:
+
+| `TRANSPORT` | Что используется под капотом | Token env |
+|---|---|---|
+| `telegram` (default) | aiogram (long-polling или webhook) | `TELEGRAM_TOKEN` |
+| `m001` | messenger001-aiogram (webhook) | `M001_TOKEN` |
+
+**Один docker-image, два деплоя:** запусти две инстанции с разными `TRANSPORT` и токенами — handler-код общий.
 
 ## Пример
 
