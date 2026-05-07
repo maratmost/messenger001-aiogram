@@ -101,6 +101,15 @@ async with Bot(token=TOKEN) as bot:
 
 5. **Готово.** Пиши боту в Messenger001 — он отвечает.
 
+## Документация
+
+См. также:
+
+- [docs/getting-started.md](docs/getting-started.md) — пошаговый «hello world» от установки до первого ответа.
+- [docs/migration-from-aiogram.md](docs/migration-from-aiogram.md) — гид по переезду существующего TG-бота.
+- [docs/api-reference.md](docs/api-reference.md) — таблица соответствия aiogram API ↔ messenger001-aiogram API.
+- [docs/webhook-spec.md](docs/webhook-spec.md) — техническое описание webhook protocol и Bot API endpoints.
+
 ## Лицензия
 
 MIT © Marat Khusainov
