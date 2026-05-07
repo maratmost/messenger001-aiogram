@@ -1,10 +1,17 @@
-"""Inline keyboards — aiogram-compatible shapes, M001 wire format.
+"""Keyboards — aiogram-compatible shapes, M001 wire format.
 
-Reply keyboards (``ReplyKeyboardMarkup`` / ``KeyboardButton`` / ``ReplyKeyboardRemove``)
-are accepted as type stubs for migration compatibility, but Messenger001 does not
-yet render them on the client. ``to_m001()`` returns ``None`` and ``Bot.send_message``
-omits the field, so passing a reply keyboard is currently a no-op rather than an
-error. Track real support in the backend roadmap.
+Both inline (``InlineKeyboardMarkup`` — buttons under the message, callback_query
+on tap) and reply (``ReplyKeyboardMarkup`` — bottom-panel buttons that send their
+text as a regular user message) keyboards are first-class since v0.1.0a5.
+
+``Bot.send_message`` and friends accept a single ``reply_markup`` parameter
+(matching aiogram) and dispatch internally:
+
+  * ``InlineKeyboardMarkup`` → wire field ``reply_markup``
+  * ``ReplyKeyboardMarkup``  → wire field ``reply_keyboard``
+
+Backend forbids both fields in one call. ``ReplyKeyboardRemove`` is currently
+a stub (``to_m001()`` returns ``None``) — backend support is planned.
 """
 from __future__ import annotations
 
@@ -84,31 +91,62 @@ class InlineKeyboardBuilder:
 
 
 # --------------------------------------------------------------------------
-# Reply keyboards — stubs (not rendered by M001 client today)
+# Reply keyboards — bottom-panel buttons (Telegram-style "reply keyboard")
 # --------------------------------------------------------------------------
 
 
 @dataclass
 class KeyboardButton:
+    """Кнопка reply-клавиатуры. Текст обязателен; флаги request_contact /
+    request_location декодируются клиентом (если поддерживает; iOS пока игнорит).
+    """
+
     text: str
     request_contact: bool = False
     request_location: bool = False
 
+    def to_m001(self) -> dict[str, Any]:
+        out: dict[str, Any] = {"text": self.text}
+        if self.request_contact:
+            out["request_contact"] = True
+        if self.request_location:
+            out["request_location"] = True
+        return out
+
 
 @dataclass
 class ReplyKeyboardMarkup:
+    """Reply-клавиатура: ряды кнопок над input bar. Tap по кнопке = юзер
+    отправил её text в чат как обычное сообщение. См. wire-формат в
+    docs/webhook-spec.md (поле ``reply_keyboard``).
+    """
+
     keyboard: list[list[KeyboardButton]] = field(default_factory=list)
     resize_keyboard: bool = False
     one_time_keyboard: bool = False
     selective: bool = False
     input_field_placeholder: Optional[str] = None
 
-    def to_m001(self) -> Optional[dict[str, Any]]:
-        return None
+    def to_m001(self) -> dict[str, Any]:
+        out: dict[str, Any] = {
+            "keyboard": [[btn.to_m001() for btn in row] for row in self.keyboard],
+            "resize_keyboard": self.resize_keyboard,
+            "one_time_keyboard": self.one_time_keyboard,
+            "selective": self.selective,
+        }
+        if self.input_field_placeholder is not None:
+            out["input_field_placeholder"] = self.input_field_placeholder
+        return out
 
 
 @dataclass
 class ReplyKeyboardRemove:
+    """Сигнал клиенту "снять reply-клавиатуру". Backend пока не поддерживает —
+    ``to_m001()`` возвращает None, ``Bot.send_message`` опустит поле. Для снятия
+    клавиатуры используй ``edit_message_text(..., reply_keyboard=None)`` с
+    explicit None — это поддерживается.
+    """
+
     remove_keyboard: bool = True
     selective: bool = False
 

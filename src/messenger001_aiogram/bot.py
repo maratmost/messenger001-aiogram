@@ -8,8 +8,35 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 import aiohttp
 
 from .exceptions import APIError
-from .keyboards import InlineKeyboardMarkup
+from .keyboards import InlineKeyboardMarkup, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from .types import BotCommand, FSInputFile, Message, User
+
+# Все типы клавиатур, что aiogram юзеры передают в `reply_markup=...`.
+ReplyMarkupType = Union[InlineKeyboardMarkup, ReplyKeyboardMarkup, ReplyKeyboardRemove]
+
+
+def _apply_reply_markup(
+    payload: dict[str, Any], reply_markup: Optional[ReplyMarkupType]
+) -> None:
+    """Раскладывает aiogram-style ``reply_markup`` параметр в правильное wire-поле:
+
+    * ``InlineKeyboardMarkup`` → ``payload["reply_markup"]`` (inline-кнопки под сообщением).
+    * ``ReplyKeyboardMarkup`` → ``payload["reply_keyboard"]`` (bottom-panel в стиле TG).
+    * ``ReplyKeyboardRemove`` → no-op (backend пока не поддерживает; см. keyboards.py).
+
+    Backend валидирует, что одновременно ``reply_markup`` и ``reply_keyboard`` не отправляются.
+    """
+    if reply_markup is None:
+        return
+    if isinstance(reply_markup, InlineKeyboardMarkup):
+        wire = reply_markup.to_m001()
+        if wire is not None:
+            payload["reply_markup"] = wire
+    elif isinstance(reply_markup, ReplyKeyboardMarkup):
+        wire = reply_markup.to_m001()
+        if wire is not None:
+            payload["reply_keyboard"] = wire
+    # ReplyKeyboardRemove → to_m001() returns None, ничего не пишем.
 
 if TYPE_CHECKING:
     from .client import DefaultBotProperties
@@ -131,16 +158,13 @@ class Bot:
         self,
         chat_id: int,
         text: str,
-        reply_markup: Optional[InlineKeyboardMarkup] = None,
+        reply_markup: Optional[ReplyMarkupType] = None,
         reply_to_message_id: Optional[int] = None,
         parse_mode: Optional[str] = None,
         **_: Any,
     ) -> Message:
         payload: dict[str, Any] = {"chat_id": chat_id, "text": text}
-        if reply_markup is not None:
-            wire = reply_markup.to_m001()
-            if wire is not None:
-                payload["reply_markup"] = wire
+        _apply_reply_markup(payload, reply_markup)
         if reply_to_message_id is not None:
             payload["reply_to_message_id"] = reply_to_message_id
         effective_parse_mode = parse_mode if parse_mode is not None else self.parse_mode
@@ -154,7 +178,7 @@ class Bot:
         text: str,
         chat_id: Optional[int] = None,
         message_id: Optional[int] = None,
-        reply_markup: Optional[InlineKeyboardMarkup] = None,
+        reply_markup: Optional[ReplyMarkupType] = None,
         **_: Any,
     ) -> Message:
         if chat_id is None or message_id is None:
@@ -164,10 +188,7 @@ class Bot:
             "message_id": message_id,
             "text": text,
         }
-        if reply_markup is not None:
-            wire = reply_markup.to_m001()
-            if wire is not None:
-                payload["reply_markup"] = wire
+        _apply_reply_markup(payload, reply_markup)
         data = await self._post_json("editMessageText", payload)
         return self._stub_message(chat_id, data)
 
@@ -244,16 +265,13 @@ class Bot:
         chat_id: int,
         photo: Any,
         caption: Optional[str] = None,
-        reply_markup: Optional[InlineKeyboardMarkup] = None,
+        reply_markup: Optional[ReplyMarkupType] = None,
         **_: Any,
     ) -> Message:
         fields: dict[str, Any] = {"chat_id": chat_id}
         if caption is not None:
             fields["caption"] = caption
-        if reply_markup is not None:
-            wire = reply_markup.to_m001()
-            if wire is not None:
-                fields["reply_markup"] = wire
+        _apply_reply_markup(fields, reply_markup)
         data = await self._post_form("sendPhoto", fields, "photo", photo)
         return self._stub_message(chat_id, data)
 
@@ -262,7 +280,7 @@ class Bot:
         chat_id: int,
         document: Any,
         caption: Optional[str] = None,
-        reply_markup: Optional[InlineKeyboardMarkup] = None,
+        reply_markup: Optional[ReplyMarkupType] = None,
         **_: Any,
     ) -> Message:
         return await self._send_media("sendDocument", chat_id, document, caption, reply_markup)
@@ -272,7 +290,7 @@ class Bot:
         chat_id: int,
         video: Any,
         caption: Optional[str] = None,
-        reply_markup: Optional[InlineKeyboardMarkup] = None,
+        reply_markup: Optional[ReplyMarkupType] = None,
         **_: Any,
     ) -> Message:
         return await self._send_media("sendVideo", chat_id, video, caption, reply_markup)
@@ -282,7 +300,7 @@ class Bot:
         chat_id: int,
         audio: Any,
         caption: Optional[str] = None,
-        reply_markup: Optional[InlineKeyboardMarkup] = None,
+        reply_markup: Optional[ReplyMarkupType] = None,
         **_: Any,
     ) -> Message:
         return await self._send_media("sendAudio", chat_id, audio, caption, reply_markup)
@@ -293,15 +311,12 @@ class Bot:
         chat_id: int,
         file: Any,
         caption: Optional[str],
-        reply_markup: Optional[InlineKeyboardMarkup],
+        reply_markup: Optional[ReplyMarkupType],
     ) -> Message:
         fields: dict[str, Any] = {"chat_id": chat_id}
         if caption is not None:
             fields["caption"] = caption
-        if reply_markup is not None:
-            wire = reply_markup.to_m001()
-            if wire is not None:
-                fields["reply_markup"] = wire
+        _apply_reply_markup(fields, reply_markup)
         data = await self._post_form(method, fields, "file", file)
         return self._stub_message(chat_id, data)
 
