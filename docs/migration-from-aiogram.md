@@ -165,7 +165,7 @@ from messenger001_aiogram.dual.fsm import State, StatesGroup, FSMContext
 
 Установка: `pip install messenger001-aiogram[telegram]` — extras-флаг подтянет `aiogram>=3.4`.
 
-Подробности — в [README](../README.md#сценарий-2--один-codebase-для-tg-и-m001) и [getting-started.md](getting-started.md).
+Подробности — в [README](https://github.com/maratmost/messenger001-aiogram#сценарий-2--один-codebase-для-tg-и-m001) и [getting-started.md](https://github.com/maratmost/messenger001-aiogram/blob/main/docs/getting-started.md).
 
 ## Чек-лист миграции
 

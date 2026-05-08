@@ -79,9 +79,9 @@ asyncio.run(main())
 
 См. [examples/echo_bot.py](examples/echo_bot.py) для полного примера.
 
-## Меню команд
+## Меню команд бота
 
-Зарегистрируй команды бота — в чате с ботом появится кнопка меню слева от поля ввода, `/команды` в тексте станут кликабельными, а ввод `/` покажет автокомплит.
+Telegram-боты обычно имеют список команд (`/start`, `/help` и т.д.) — он показывается клиенту в виде popup'а при вводе `/` в чате и в виде кнопки `≡` слева от поля ввода. Чтобы такой же popup появился в Messenger001, **сообщи серверу список своих команд один раз** (при старте бота или при изменении набора). Делается одним вызовом — точно так же, как `bot.set_my_commands(...)` в aiogram:
 
 ```python
 from messenger001_aiogram import BotCommand
@@ -92,6 +92,10 @@ async with Bot(token=TOKEN) as bot:
         BotCommand(command="help",  description="Помощь"),
     ])
 ```
+
+После этого в Messenger001:
+- При вводе `/` в чате с ботом всплывёт popup со списком команд → tap отправляет команду.
+- Слева от текстового поля появится кнопка `≡` → tap открывает тот же popup.
 
 ## Что поддерживается (v0.1)
 
@@ -118,7 +122,7 @@ async with Bot(token=TOKEN) as bot:
 
 1. **Создай бота.** Открой в Messenger001 чат с **@botfather** → `/newbot` → получи токен. Сохрани его в env-переменную `M001_TOKEN`.
 
-2. **Напиши код бота.** Используй пример выше или скопируй [examples/echo_bot.py](examples/echo_bot.py).
+2. **Напиши код бота.** Используй пример выше или скопируй [examples/echo_bot.py](https://github.com/maratmost/messenger001-aiogram/blob/main/examples/echo_bot.py).
 
 3. **Запусти бота на сервере с публичным HTTPS** (VPS, Railway, Render, Fly.io). Скрипт должен слушать `POST /webhook` на публично доступном URL. Для production используй systemd / supervisor / docker, чтобы процесс автоматически рестартился.
 
@@ -132,12 +136,12 @@ async with Bot(token=TOKEN) as bot:
 
 ## Документация
 
-См. также:
+См. также (ссылки на GitHub — рендерятся и кликабельны и на PyPI, и на странице репозитория):
 
-- [docs/getting-started.md](docs/getting-started.md) — пошаговый «hello world» от установки до первого ответа.
-- [docs/migration-from-aiogram.md](docs/migration-from-aiogram.md) — гид по переезду существующего TG-бота.
-- [docs/api-reference.md](docs/api-reference.md) — таблица соответствия aiogram API ↔ messenger001-aiogram API.
-- [docs/webhook-spec.md](docs/webhook-spec.md) — техническое описание webhook protocol и Bot API endpoints.
+- [docs/getting-started.md](https://github.com/maratmost/messenger001-aiogram/blob/main/docs/getting-started.md) — пошаговый «hello world» от установки до первого ответа.
+- [docs/migration-from-aiogram.md](https://github.com/maratmost/messenger001-aiogram/blob/main/docs/migration-from-aiogram.md) — гид по переезду существующего TG-бота.
+- [docs/api-reference.md](https://github.com/maratmost/messenger001-aiogram/blob/main/docs/api-reference.md) — таблица соответствия aiogram API ↔ messenger001-aiogram API.
+- [docs/webhook-spec.md](https://github.com/maratmost/messenger001-aiogram/blob/main/docs/webhook-spec.md) — техническое описание webhook protocol и Bot API endpoints.
 
 ## Лицензия
 
