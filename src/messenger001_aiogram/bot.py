@@ -179,6 +179,7 @@ class Bot:
         chat_id: Optional[int] = None,
         message_id: Optional[int] = None,
         reply_markup: Optional[ReplyMarkupType] = None,
+        parse_mode: Optional[str] = None,
         **_: Any,
     ) -> Message:
         if chat_id is None or message_id is None:
@@ -189,6 +190,13 @@ class Bot:
             "text": text,
         }
         _apply_reply_markup(payload, reply_markup)
+        # Inherit bot-level default if call-site didn't pass one explicitly.
+        # Without this, DefaultBotProperties(parse_mode=HTML) leaks tags into
+        # the wire payload because edit_message_text used to swallow parse_mode
+        # through **_ and never forwarded it to the backend.
+        effective_parse_mode = parse_mode if parse_mode is not None else self.parse_mode
+        if effective_parse_mode is not None:
+            payload["parse_mode"] = effective_parse_mode
         data = await self._post_json("editMessageText", payload)
         return self._stub_message(chat_id, data)
 

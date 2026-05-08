@@ -86,13 +86,18 @@ async def main():
 | Возможность | Статус | Что делать |
 |-------------|--------|------------|
 | `dp.start_polling(...)` | Не поддерживается (M001 webhook-only) | Используйте `start_webhook(...)` |
-| Reply-клавиатура (`ReplyKeyboardMarkup`, `KeyboardButton`) | Платформа не рендерит | Классы есть как стабы (импорты не сломаются), но клиент их не покажет. Используйте inline-клавиатуру. |
 | Forwarding сообщений | Не поддерживается | Удалите вызовы `bot.forward_message`, `msg.forward(...)` или замените логику. |
 | Polls / Stickers | Не поддерживается | На стороне M001 этих сущностей нет. Замените опросы inline-клавиатурой, стикеры — фото/видео. |
 | Voice / Animation / VideoNote | Не поддерживается | Используйте `send_audio` / `send_video` / `send_document`. |
 | Long-polling, `getUpdates` | Не поддерживается | Webhook only. |
 | Inline-mode (`@bot query`) | Не поддерживается | На стороне M001 inline-режима нет. |
-| `parse_mode=HTML/Markdown` | Best-effort | Передаётся в API, но рендеринг зависит от клиента M001. Не закладывайтесь на полный паритет с TG. |
+
+## Что РАБОТАЕТ полноценно
+
+- **`parse_mode="HTML"` / `DefaultBotProperties(parse_mode=ParseMode.HTML)`** — backend парсит HTML в text + MessageEntity (как Telegram MTProto), клиент рендерит NSAttributedString. Поддерживаются `<b>`, `<i>`, `<u>`, `<s>`, `<a href>`, `<code>`, `<pre>`, `<blockquote>`, `<tg-spoiler>` и синонимы (`<strong>`, `<em>`, `<ins>`, `<del>`, `<strike>`). URL-ссылки фильтруются по схемам — `javascript:` и `data:` отбрасываются.
+- **Inline-клавиатура** (`InlineKeyboardMarkup` + `callback_data` / `url`).
+- **Reply-клавиатура** (`ReplyKeyboardMarkup` + `KeyboardButton`) — Telegram-style персистентная панель над input bar. Клиент M001 рендерит её как нижнюю панель кнопок.
+- **`set_my_commands` / `get_my_commands`** — popup автокомплита `/` в чате с ботом + `≡`-кнопка Bot Menu.
 
 ## Пример «было / стало»: handlers без изменений
 
@@ -147,14 +152,29 @@ async def main():
 
 Тело хендлеров — посимвольно одинаковое.
 
+## Хочу TG и M001 одновременно (один codebase)
+
+Один Python-файл — два транспорта, переключение env-переменной `TRANSPORT={telegram|m001}`. Импорты идут через подмодуль `.dual.*`:
+
+```python
+from messenger001_aiogram.dual import Bot, Dispatcher, F, Router
+from messenger001_aiogram.dual.filters import Command, CommandStart
+from messenger001_aiogram.dual.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from messenger001_aiogram.dual.fsm import State, StatesGroup, FSMContext
+```
+
+Установка: `pip install messenger001-aiogram[telegram]` — extras-флаг подтянет `aiogram>=3.4`.
+
+Подробности — в [README](../README.md#сценарий-2--один-codebase-для-tg-и-m001) и [getting-started.md](getting-started.md).
+
 ## Чек-лист миграции
 
 1. Замените импорты по таблице выше.
 2. Замените `dp.start_polling(bot)` на `start_webhook(dp, bot, port=...)`.
-3. Уберите/замените код, использующий неподдерживаемые фичи (reply-клавиатуры, polls, forwarding).
+3. Уберите/замените код, использующий неподдерживаемые фичи (polls, forwarding).
 4. Создайте бота в Messenger001 через `@botfather` → получите токен.
 5. Задеплойте бота на публичный HTTPS-хост.
 6. Зарегистрируйте webhook-URL у `@botfather`.
-7. Проверьте: `/start`, основные команды, inline-кнопки.
+7. Проверьте: `/start`, основные команды, inline-кнопки, HTML-форматирование.
 
 Если что-то не работает — сначала смотрите [api-reference.md](api-reference.md): возможно, метод не поддерживается. Затем [webhook-spec.md](webhook-spec.md), если подозреваете проблему на уровне протокола.

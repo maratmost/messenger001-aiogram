@@ -109,8 +109,9 @@ async with Bot(token=TOKEN) as bot:
 | `InlineKeyboardBuilder`, `InlineKeyboardMarkup` | ✅ |
 | `State`, `StatesGroup`, `FSMContext`, `MemoryStorage` | ✅ |
 | Webhook receiver (aiohttp) + HMAC-verify | ✅ |
+| Reply-клавиатура (`ReplyKeyboardMarkup`) | ✅ Telegram-style панель над input bar |
+| `parse_mode="HTML"` (`<b>`, `<i>`, `<a href>`, `<code>`, и т.д.) | ✅ парсится на backend в `MessageEntity[]` (как Telegram MTProto) |
 | `bot.start_polling(...)` | ❌ (M001 — webhook-only) |
-| Reply-клавиатура | ❌ (нет на платформе) |
 | Forwarding, polls, stickers | ❌ (нет на платформе) |
 
 ## Подключение
